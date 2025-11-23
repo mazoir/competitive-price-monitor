@@ -1,0 +1,111 @@
+/*
+=======================================================
+SCRIPT DE CRIAÇÃO DE TABELAS
+Sistema: Monitor de Preços de Concorrentes
+Autor: Mazoir Aguiar
+Data: Novembro 2025
+=======================================================
+*/
+
+-- =====================================================
+-- 1. TABELA DE CONCORRENTES
+-- =====================================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Concorrentes')
+BEGIN
+    CREATE TABLE Concorrentes (
+        ConcorrenteID INT PRIMARY KEY IDENTITY(1,1),
+        Nome NVARCHAR(100) NOT NULL,
+        URLBase NVARCHAR(500) NOT NULL,
+        UltimaAtualizacao DATETIME DEFAULT GETDATE(),
+        Ativo BIT DEFAULT 1,
+        
+        CONSTRAINT UQ_Concorrente_Nome UNIQUE (Nome)
+    );
+    
+    PRINT '✅ Tabela Concorrentes criada com sucesso!'
+END
+GO
+
+-- =====================================================
+-- 2. TABELA DE PRODUTOS MONITORADOS
+-- =====================================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Produtos')
+BEGIN
+    CREATE TABLE Produtos (
+        ProdutoID INT PRIMARY KEY IDENTITY(1,1),
+        SKU NVARCHAR(50) NOT NULL,
+        Nome NVARCHAR(200) NOT NULL,
+        Categoria NVARCHAR(100),
+        PrecoReferencia DECIMAL(10,2),
+        DataCadastro DATETIME DEFAULT GETDATE(),
+        
+        CONSTRAINT UQ_Produto_SKU UNIQUE (SKU)
+    );
+    
+    PRINT '✅ Tabela Produtos criada com sucesso!'
+END
+GO
+
+-- =====================================================
+-- 3. TABELA DE HISTÓRICO DE PREÇOS
+-- =====================================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'HistoricoPrecos')
+BEGIN
+    CREATE TABLE HistoricoPrecos (
+        HistoricoID INT PRIMARY KEY IDENTITY(1,1),
+        ProdutoID INT NOT NULL,
+        ConcorrenteID INT NOT NULL,
+        Preco DECIMAL(10,2) NOT NULL,
+        Disponivel BIT DEFAULT 1,
+        DataColeta DATETIME DEFAULT GETDATE(),
+        
+        CONSTRAINT FK_Historico_Produto FOREIGN KEY (ProdutoID) 
+            REFERENCES Produtos(ProdutoID),
+        CONSTRAINT FK_Historico_Concorrente FOREIGN KEY (ConcorrenteID) 
+            REFERENCES Concorrentes(ConcorrenteID)
+    );
+    
+    -- Índice para otimizar consultas por data
+    CREATE NONCLUSTERED INDEX IX_HistoricoPrecos_DataColeta 
+        ON HistoricoPrecos(DataColeta DESC);
+    
+    PRINT '✅ Tabela HistoricoPrecos criada com sucesso!'
+END
+GO
+
+-- =====================================================
+-- 4. VIEW: ÚLTIMOS PREÇOS POR PRODUTO
+-- =====================================================
+CREATE OR ALTER VIEW vw_UltimosPrecos AS
+SELECT 
+    p.ProdutoID,
+    p.SKU,
+    p.Nome AS NomeProduto,
+    c.Nome AS Concorrente,
+    hp.Preco,
+    hp.Disponivel,
+    hp.DataColeta,
+    -- Calcula diferença percentual vs. preço de referência
+    CASE 
+        WHEN p.PrecoReferencia > 0 THEN 
+            ROUND(((hp.Preco - p.PrecoReferencia) / p.PrecoReferencia * 100), 2)
+        ELSE NULL 
+    END AS DiferencaPercentual
+FROM 
+    HistoricoPrecos hp
+    INNER JOIN Produtos p ON hp.ProdutoID = p.ProdutoID
+    INNER JOIN Concorrentes c ON hp.ConcorrenteID = c.ConcorrenteID
+WHERE 
+    hp.DataColeta = (
+        SELECT MAX(DataColeta) 
+        FROM HistoricoPrecos hp2 
+        WHERE hp2.ProdutoID = hp.ProdutoID 
+          AND hp2.ConcorrenteID = hp.ConcorrenteID
+    )
+GO
+
+PRINT '✅ View vw_UltimosPrecos criada com sucesso!'
+PRINT '================================================='
+PRINT '🎉 ESTRUTURA DO BANCO DE DADOS CRIADA COM SUCESSO!'
+PRINT '================================================='
+```
