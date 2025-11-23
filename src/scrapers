@@ -1,0 +1,99 @@
+"""
+Exemplo de Scraper Base
+Template para criar scrapers de sites específicos
+
+Autor: Mazoir Aguiar
+"""
+
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+from typing import List, Dict
+
+
+class BaseScraper:
+    """
+    Classe base para scrapers de sites de e-commerce
+    
+    Padrão de uso:
+    1. Herdar desta classe
+    2. Implementar método parse_product()
+    3. Configurar headers e URL base
+    """
+    
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+    
+    def fetch_page(self, url: str) -> str:
+        """
+        Faz requisição HTTP e retorna o HTML
+        
+        Args:
+            url: URL do site a ser raspado
+            
+        Returns:
+            HTML da página em formato string
+        """
+        try:
+            response = requests.get(url, headers=self.headers, timeout=10)
+            response.raise_for_status()
+            return response.text
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Erro ao acessar {url}: {e}")
+            return None
+    
+    def parse_product(self, html: str) -> Dict:
+        """
+        Extrai informações do produto do HTML
+        
+        ESTE MÉTODO DEVE SER IMPLEMENTADO EM CADA SCRAPER ESPECÍFICO
+        
+        Args:
+            html: HTML da página do produto
+            
+        Returns:
+            Dicionário com dados do produto
+        """
+        raise NotImplementedError("Implemente este método no scraper específico")
+    
+    def scrape_products(self, urls: List[str]) -> pd.DataFrame:
+        """
+        Raspa múltiplos produtos e retorna DataFrame
+        
+        Args:
+            urls: Lista de URLs de produtos
+            
+        Returns:
+            DataFrame com dados de todos os produtos
+        """
+        products = []
+        
+        for url in urls:
+            print(f"🔍 Raspando: {url}")
+            html = self.fetch_page(url)
+            
+            if html:
+                product_data = self.parse_product(html)
+                products.append(product_data)
+        
+        return pd.DataFrame(products)
+
+
+# Exemplo de uso (comentado):
+"""
+class MagazineLuizaScraper(BaseScraper):
+    def __init__(self):
+        super().__init__('https://www.magazineluiza.com.br')
+    
+    def parse_product(self, html: str) -> Dict:
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        return {
+            'nome': soup.find('h1', class_='nome-produto').text,
+            'preco': soup.find('span', class_='preco').text,
+            'disponibilidade': 'Em estoque'
+        }
+"""
